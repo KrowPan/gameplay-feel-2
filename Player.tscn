@@ -1,0 +1,36 @@
+[gd_scene format=3 uid="uid://cq5w5mkl7647i"]
+
+[ext_resource type="Script" uid="uid://bpbcy70h4yhco" path="res://Player.cs" id="1_xhfnw"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_xhfnw"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_kpjcp"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_xhfnw"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_xhfnw"]
+
+[node name="Player" type="CharacterBody3D" unique_id=1696193768]
+script = ExtResource("1_xhfnw")
+
+[node name="UpperSphere" type="CollisionShape3D" parent="." unique_id=2082214216]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46339333, 0)
+shape = SubResource("SphereShape3D_xhfnw")
+
+[node name="LowerSphere" type="CollisionShape3D" parent="." unique_id=1355926168]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.48129797, 0)
+shape = SubResource("SphereShape3D_kpjcp")
+
+[node name="Graphics" type="Node3D" parent="." unique_id=961226960]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Graphics" unique_id=434909594]
+mesh = SubResource("CapsuleMesh_xhfnw")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="Graphics" unique_id=1606937217]
+transform = Transform3D(0.5764275, 0, 0, 0, 0.24717589, 0, 0, 0, 0.6847125, 0, 0.5273177, 0.45898026)
+mesh = SubResource("BoxMesh_xhfnw")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=1860026076]
+transform = Transform3D(0.749002, 0.27244535, -0.6039616, 0, 0.9115469, 0.41119617, 0.6625678, -0.30798674, 0.6827504, -2.4143434, 2.8255746, 3.12166)
+
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=782244301]
