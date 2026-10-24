@@ -33,7 +33,7 @@ public partial class Player : CharacterBody3D
     {
         upperSphere = GetNode<CollisionShape3D>("UpperSphere");
         lowerSphere = GetNode<CollisionShape3D>("LowerSphere");
-        camera = GetNode<Camera3D>("SpringArm3D/Camera3D");
+        camera = GetViewport().GetCamera3D();
         graphics = GetNode<Node3D>("Graphics");
     }
 

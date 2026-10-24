@@ -29,8 +29,3 @@ mesh = SubResource("CapsuleMesh_xhfnw")
 [node name="MeshInstance3D2" type="MeshInstance3D" parent="Graphics" unique_id=1606937217]
 transform = Transform3D(0.5764275, 0, 0, 0, 0.24717589, 0, 0, 0, 0.6847125, 0, 0.5273177, 0.45898026)
 mesh = SubResource("BoxMesh_xhfnw")
-
-[node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=1860026076]
-transform = Transform3D(0.749002, 0.27244535, -0.6039616, 0, 0.9115469, 0.41119617, 0.6625678, -0.30798674, 0.6827504, -2.4143434, 2.8255746, 3.12166)
-
-[node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=782244301]
