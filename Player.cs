@@ -2,9 +2,8 @@ using Godot;
 
 public partial class Player : CharacterBody3D
 {
+    // Movement settings
     [Export] public float MoveSpeed = 5.0f;
-    [Export] public float Acceleration = 8.0f;
-    [Export] public float Deceleration = 25.0f;
     [Export] public float RotationSpeed = 10.0f;
     [Export] public float JumpForce = 7.0f;
     [Export] public float JumpDelay = 0.15f;
@@ -12,168 +11,132 @@ public partial class Player : CharacterBody3D
     [Export] public float HangTime = 0.3f;
     [Export] public float CoyoteTime = 0.15f;
     [Export] public float DuckSpeed = 2.5f;
+    [Export] public float StickDeadzone = 0.2f;
 
     private float jumpTimer = 0.0f;
     private float coyoteTimer = 0.0f;
     private float hangTimer = 0.0f;
+
     private bool jumpInProgress = false;
     private bool isHovering = false;
     private bool isDucking = false;
     private bool preparingJump = false;
+    private bool jumpWasPressed = false;
 
     private CollisionShape3D upperSphere;
-    private CollisionShape3D lowerSphere;
     private Node3D graphics;
     private Camera3D camera;
-
-    private int movementMode = 1;
-
-
+    
+    // Lowersphere isn't ever modified so it isn't called upon
     public override void _Ready()
     {
         upperSphere = GetNode<CollisionShape3D>("UpperSphere");
-        lowerSphere = GetNode<CollisionShape3D>("LowerSphere");
-        camera = GetViewport().GetCamera3D();
         graphics = GetNode<Node3D>("Graphics");
+        camera = GetViewport().GetCamera3D();
     }
 
-    // Includes movement and what functions should be called in what order
+    // Handles movement, movement relative to camera and deadzone. Also used to call upon everything in order
     public override void _PhysicsProcess(double delta)
     {
-        // Each mode determines what movement style the player will have
-        if (Input.IsActionJustPressed("modulation_1"))
+        float dt = (float)delta;
+
+        Vector2 input = new Vector2(Input.GetJoyAxis(0, JoyAxis.LeftX), Input.GetJoyAxis(0, JoyAxis.LeftY));
+
+        // Deadzone check necessary
+        if (input.Length() < StickDeadzone)
         {
-            movementMode = 1;
+            input = Vector2.Zero;
         }
 
-        if (Input.IsActionJustPressed("modulation_2"))
+        else
         {
-            movementMode = 2;
+            input = input.LimitLength(1.0f);
         }
 
-        if (Input.IsActionJustPressed("modulation_3"))
-        {
-            movementMode = 3;
-        }
+        // Limit diagonal movement so it is not faster than straight movement
+        input = input.LimitLength(1.0f);
 
-        Vector2 input = Input.GetVector("move_left","move_right","move_forward","move_backward");
-
-        // Calculate the camera's direction
+        // Used to keep movement on the horizontal plane so camera doesn't affect Y velocity
         Vector3 forward = -camera.GlobalBasis.Z;
         Vector3 right = camera.GlobalBasis.X;
-
-        // Ensures camera angle change doesn't affect movement speed
         forward.Y = 0;
         right.Y = 0;
-
-        // Keeps movement relative to the camera
         forward = forward.Normalized();
         right = right.Normalized();
+
+        // Convert movement to be relative to camera
         Vector3 direction = (right * input.X - forward * input.Y).Normalized();
 
-        float currentSpeed = isDucking ? DuckSpeed : MoveSpeed;
-        Vector3 targetVelocity = direction * currentSpeed;
-        Vector3 horizontalVelocity = new Vector3(Velocity.X, 0, Velocity.Z);
+        // Crouch speed
+        float speed = isDucking ? DuckSpeed : MoveSpeed;
+        Vector3 horizontalVelocity = direction * speed;
 
-
-        // Snappy instant acceleration/deceleration
-        if (movementMode == 1)
-        {
-            horizontalVelocity = targetVelocity;
-        }
-
-        // Constant slow acceleration/deceleration
-        else if (movementMode == 2)
-        {
-            if (direction != Vector3.Zero)
-            {
-                horizontalVelocity = horizontalVelocity.MoveToward(targetVelocity, Acceleration * (float)delta);
-            }
-            else
-            {
-                horizontalVelocity = horizontalVelocity.MoveToward(Vector3.Zero, Deceleration * (float)delta);
-            }
-        }
-
-        // Ease acceleration/deceleration with Lerp instead of MoveToward which provides smoother easing
-        else if (movementMode == 3)
-        {
-            if (direction != Vector3.Zero)
-            {
-                horizontalVelocity = horizontalVelocity.Lerp(targetVelocity, Acceleration * (float)delta);
-            }
-            // Deceleration still uses a constant-rate reduction in speed.
-            else
-            {
-                horizontalVelocity = horizontalVelocity.MoveToward(Vector3.Zero, Deceleration * (float)delta);
-            }
-        }
-
-        // Prevents movement input from overwriting jump or gravity.
+        // Update horizontal movement without changing vertical velocity.
         Velocity = new Vector3(horizontalVelocity.X, Velocity.Y, horizontalVelocity.Z);
 
-        // Proper order for movement
-        RotateGraphics((float)delta);
-        HandleHangTime((float)delta);
-        ApplyGravity((float)delta);
-        UpdateCoyoteTime((float)delta);
-        PrepareJump((float)delta);
+        // Proper function order, with deltaTime 
+        RotateGraphics(dt);
+        HandleHangTime(dt);
+        ApplyGravity(dt);
+        UpdateCoyoteTime(dt);
+        PrepareJump(dt);
         HandleDucking();
         MoveAndSlide();
     }
 
-    // Function makes it so rotation/movement is tied to camera angle
+    // Turn the visible model toward its movement direction.
     private void RotateGraphics(float delta)
     {
         Vector3 direction = new Vector3(Velocity.X, 0, Velocity.Z);
 
-        // If the player barely moves then it will face the same direction
         if (direction.LengthSquared() < 0.01f)
         {
             return;
         }
 
-        // Atan2 converts the X and Z direction into a rotation angle.
         float targetAngle = Mathf.Atan2(direction.X, direction.Z);
-
-        Vector3 rotation = GetNode<Node3D>("Graphics").Rotation;
-
-        // LerpAngle chooses the appropriate direction around the circle.
+        Vector3 rotation = graphics.Rotation;
         rotation.Y = Mathf.LerpAngle(rotation.Y, targetAngle, RotationSpeed * delta);
-
-        GetNode<Node3D>("Graphics").Rotation = rotation;
+        graphics.Rotation = rotation;
     }
 
-    // Jump anticipation with timers
+    // Jump anticipation "animation" and delaying jump for it
     private void PrepareJump(float delta)
     {
-        if (Input.IsActionJustPressed("jump") && coyoteTimer > 0 && !preparingJump && !isDucking)
+        bool jumpPressed = Input.IsJoyButtonPressed(0, JoyButton.A);
+
+        // Start a jump only when the button is newly pressed (prevents holding button to jump)
+        if (jumpPressed && !jumpWasPressed && coyoteTimer > 0 && !preparingJump && !isDucking)
         {
             preparingJump = true;
             jumpTimer = JumpDelay;
         }
 
-        // Continue the anticipation 
-        if (preparingJump)
+        jumpWasPressed = jumpPressed;
+
+        if (!preparingJump)
         {
-            jumpTimer -= delta;
+            return;
+        }
 
-            // Hard coded "animation" for anticiption
-            Vector3 scale = graphics.Scale;
-            scale.Y = 0.7f;
-            graphics.Scale = scale;
+        jumpTimer -= delta;
 
-            if (jumpTimer <= 0.0f)
-            {
-                Velocity = new Vector3(Velocity.X, JumpForce, Velocity.Z);
-                jumpInProgress = true;
-                preparingJump = false;
-                graphics.Scale = Vector3.One;
-            }
+        // "Animation"
+        Vector3 scale = graphics.Scale;
+        scale.Y = 0.7f;
+        graphics.Scale = scale;
+
+        if (jumpTimer <= 0.0f)
+        {
+            Velocity = new Vector3(Velocity.X, JumpForce, Velocity.Z);
+
+            jumpInProgress = true;
+            preparingJump = false;
+            graphics.Scale = Vector3.One;
         }
     }
 
-    // Gravity
+    // Simple gravity
     private void ApplyGravity(float delta)
     {
         if (!IsOnFloor())
@@ -182,7 +145,7 @@ public partial class Player : CharacterBody3D
         }
     }
 
-    // Hang time checks for when the player stops gaining/losing vertical velocity from gravity
+    // Apex of a jump is calculated by checking if the player stops gaining or losing vertical velocity
     private void HandleHangTime(float delta)
     {
         if (jumpInProgress && !isHovering && Velocity.Y <= 0)
@@ -204,25 +167,25 @@ public partial class Player : CharacterBody3D
         }
     }
 
-    // Coyote time was surprisingly easy to implement, but I know it can end up looking janky
+    // Simple coyote implementation
     private void UpdateCoyoteTime(float delta)
     {
         if (IsOnFloor())
         {
             coyoteTimer = CoyoteTime;
         }
+
         else
         {
             coyoteTimer -= delta;
         }
     }
 
-    // Crouching
+    // Also known as crouching, scales the player with an "animation" too and slows speed
     private void HandleDucking()
     {
-        isDucking = Input.IsActionPressed("duck");
+        isDucking = Input.IsJoyButtonPressed(0, JoyButton.B);
 
-        // Ducking "animation"
         if (isDucking)
         {
             graphics.Scale = new Vector3(1, -0.4f, 1);
@@ -230,7 +193,6 @@ public partial class Player : CharacterBody3D
             upperSphere.Position = new Vector3(0, -0.4f, 0);
         }
 
-        // Prevents jump anticipation from being overriden by Vector3.One;
         else
         {
             if (!preparingJump)
